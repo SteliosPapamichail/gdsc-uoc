@@ -1,15 +1,21 @@
 package org.example;
 
 import com.google.api.core.ApiFuture;
+import com.google.api.services.storage.Storage;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.*;
+import com.google.cloud.storage.Bucket;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
+import com.google.firebase.cloud.StorageClient;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -45,6 +51,59 @@ public class Main {
         createNewGalleryEntry(db, true);
         System.out.println("---------------------------\n");
         deleteSampleArtistEntry(db);
+        fetchAndDisplayArtworkImg(db);
+    }
+
+    private static void fetchAndDisplayArtworkImg(Firestore db) {
+        String imgUrl = fetchArtworkUrl(db);
+        if (!imgUrl.isEmpty()) {
+            displayImg(imgUrl);
+        } else {
+            System.out.println("Image url was null!");
+        }
+    }
+
+    private static String fetchArtworkUrl(Firestore db) {
+        String baseUrl = "https://firebasestorage.googleapis.com/v0/b/gdsc-firebase-intro.appspot.com/o/";
+        // asynchronously retrieve a specific artwork
+        DocumentReference documentReference = db.collection("artworks").document("oegT8sMEZf60rooWgZfE");
+        // asynchronously retrieve the document
+        ApiFuture<DocumentSnapshot> future = documentReference.get();
+        // future.get() blocks on response
+        DocumentSnapshot document = null;
+        try {
+            document = future.get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+        if (document.exists()) {
+            return baseUrl + document.getString("thumbnailUrl").replace("/","%2F") + "?alt=media";
+        } else {
+            return "";
+        }
+    }
+
+    private static void displayImg(String imgSrcUrl) {
+        try {
+            URL url = new URL(imgSrcUrl);
+            InputStream in = url.openStream();
+            BufferedImage bufferedImage = ImageIO.read(in);
+            ImageIcon imageIcon = new ImageIcon(bufferedImage);
+            JFrame jFrame = new JFrame();
+
+            jFrame.setLayout(new FlowLayout());
+
+            jFrame.setSize(500, 500);
+            JLabel jLabel = new JLabel();
+
+            jLabel.setIcon(imageIcon);
+            jFrame.add(jLabel);
+            jFrame.setVisible(true);
+
+            jFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static void deleteSampleArtistEntry(Firestore db) {
@@ -85,7 +144,7 @@ public class Main {
     }
 
     private static void readAndPrintAllArtworks(Firestore db) {
-        // asynchronously retrieve all users
+        // asynchronously retrieve all artworks
         ApiFuture<QuerySnapshot> query = db.collection("artworks").get();
 
         // query.get() blocks on response
