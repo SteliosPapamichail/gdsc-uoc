@@ -1,20 +1,20 @@
 package org.example;
 
 import com.google.api.core.ApiFuture;
-import com.google.api.services.storage.Storage;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.*;
-import com.google.cloud.storage.Bucket;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
-import com.google.firebase.cloud.StorageClient;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.*;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
@@ -44,14 +44,74 @@ public class Main {
         FirebaseApp.initializeApp(options);
 
         Firestore db = FirestoreClient.getFirestore();
-        readAndPrintAllArtworks(db);
-        System.out.println("---------------------------\n");
-        createNewGalleryEntry(db, false);
-        System.out.println("---------------------------\n");
-        createNewGalleryEntry(db, true);
-        System.out.println("---------------------------\n");
-        deleteSampleArtistEntry(db);
+//        readAndPrintAllArtworks(db);
+//        System.out.println("---------------------------\n");
+//        createNewGalleryEntry(db, false);
+//        System.out.println("---------------------------\n");
+//        createNewGalleryEntry(db, true);
+//        System.out.println("---------------------------\n");
+//        deleteSampleArtistEntry(db);
         fetchAndDisplayArtworkImg(db);
+    }
+
+    private static void readAndPrintAllArtworks(Firestore db) {
+        // asynchronously retrieve all artworks
+        ApiFuture<QuerySnapshot> query = db.collection("artworks").get();
+
+        // query.get() blocks on response
+        QuerySnapshot querySnapshot = null;
+        try {
+            querySnapshot = query.get();
+            List<QueryDocumentSnapshot> documents = querySnapshot.getDocuments();
+            for (QueryDocumentSnapshot document : documents) {
+                System.out.println("ArtworkId: " + document.getId());
+                DocumentReference artistRef = (DocumentReference) document.get("artistId");
+                System.out.println("Related artist path: " + artistRef.getPath());
+                DocumentReference galleryRef = (DocumentReference) document.get("galleryId");
+                System.out.println("Related gallery path: " + galleryRef.getPath());
+                System.out.println("Thumbnail url: " + document.getString("thumbnailUrl"));
+                System.out.println("Title: " + document.getString("title"));
+            }
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void createNewGalleryEntry(Firestore db, boolean autoGenId) {
+        HashMap<String, Object> galleryInfo = new HashMap<>();
+        if (!autoGenId) {
+            galleryInfo.put("gName", "Dio Horia");
+            galleryInfo.put("location", new GeoPoint(10.051, 110.000));
+            // Add a new document (asynchronously) in collection "galleries" with id "dio_horia"
+            ApiFuture<WriteResult> future = db.collection("galleries").document("dio_horia").set(galleryInfo/*, SetOptions.merge()*/);
+            try {
+                // future.get() blocks on response
+                System.out.println("New entry created successfully!\nUpdate time : " + future.get().getUpdateTime());
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            galleryInfo.put("gName", "AutoGen Gallery");
+            galleryInfo.put("location", new GeoPoint(0.00, 170.00));
+            // Add a new document (asynchronously) in collection "galleries" with auto-generated id
+            ApiFuture<DocumentReference> docRef = db.collection("galleries").add(galleryInfo);
+            try {
+                // future.get() blocks on response
+                System.out.println("Added document with ID: " + docRef.get().getId());
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private static void deleteSampleArtistEntry(Firestore db) {
+        // asynchronously delete a document
+        ApiFuture<WriteResult> writeResult = db.collection("artists").document("pls-dont-do-this").delete();
+        try {
+            System.out.println("Entry deleted successfully!\nUpdate time : " + writeResult.get().getUpdateTime());
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static void fetchAndDisplayArtworkImg(Firestore db) {
@@ -102,66 +162,6 @@ public class Main {
 
             jFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static void deleteSampleArtistEntry(Firestore db) {
-        // asynchronously delete a document
-        ApiFuture<WriteResult> writeResult = db.collection("artists").document("pls-dont-do-this").delete();
-        try {
-            System.out.println("Entry deleted successfully!\nUpdate time : " + writeResult.get().getUpdateTime());
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static void createNewGalleryEntry(Firestore db, boolean autoGenId) {
-        HashMap<String, Object> galleryInfo = new HashMap<>();
-        if (!autoGenId) {
-            galleryInfo.put("gName", "Dio Horia");
-            galleryInfo.put("location", new GeoPoint(10.051, 110.000));
-            // Add a new document (asynchronously) in collection "galleries" with id "dio_horia"
-            ApiFuture<WriteResult> future = db.collection("galleries").document("dio_horia").set(galleryInfo/*, SetOptions.merge()*/);
-            try {
-                // future.get() blocks on response
-                System.out.println("New entry created successfully!\nUpdate time : " + future.get().getUpdateTime());
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            galleryInfo.put("gName", "AutoGen Gallery");
-            galleryInfo.put("location", new GeoPoint(0.00, 170.00));
-            // Add a new document (asynchronously) in collection "galleries" with auto-generated id
-            ApiFuture<DocumentReference> docRef = db.collection("galleries").add(galleryInfo);
-            try {
-                // future.get() blocks on response
-                System.out.println("Added document with ID: " + docRef.get().getId());
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    private static void readAndPrintAllArtworks(Firestore db) {
-        // asynchronously retrieve all artworks
-        ApiFuture<QuerySnapshot> query = db.collection("artworks").get();
-
-        // query.get() blocks on response
-        QuerySnapshot querySnapshot = null;
-        try {
-            querySnapshot = query.get();
-            List<QueryDocumentSnapshot> documents = querySnapshot.getDocuments();
-            for (QueryDocumentSnapshot document : documents) {
-                System.out.println("ArtworkId: " + document.getId());
-                DocumentReference artistRef = (DocumentReference) document.get("artistId");
-                System.out.println("Related artist path: " + artistRef.getPath());
-                DocumentReference galleryRef = (DocumentReference) document.get("galleryId");
-                System.out.println("Related gallery path: " + galleryRef.getPath());
-                System.out.println("Thumbnail url: " + document.getString("thumbnailUrl"));
-                System.out.println("Title: " + document.getString("title"));
-            }
-        } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
     }
